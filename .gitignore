@@ -1,0 +1,14 @@
+*.asm
+*.ihx
+*.lst
+*.o
+*.s2
+*.sym
+*.gb
+*.gbc
+
+*venv/
+.vscode/
+test_runner
+lib/
+*DS_Store
