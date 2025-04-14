@@ -11,7 +11,8 @@
 typedef struct _obj {
     void (*init)(void *data);
     uint8_t (*step)(void *data);
-    uint8_t (*exit)(void *data);
+    uint8_t (*destroy)(void *data);
+    void (*draw)(void *data);
     void *data;
     struct _obj *next;
 } obj;
@@ -21,12 +22,14 @@ void obj_pool_init(void);
 obj *obj_create(
     void (*init)(void *data),
     uint8_t (*step)(void *data),
-    uint8_t (*exit)(void *data),
+    uint8_t (*destroy)(void *data),
+    void (*draw)(void *data),
     void *data
 );
 
-void obj_release(obj **target);
+void obj_release(obj *target);
+void obj_release_all(void);
 
-void obj_run_cycle(obj *start);
+void obj_run_cycle(void);
 
 #endif

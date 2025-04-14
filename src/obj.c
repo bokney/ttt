@@ -4,12 +4,11 @@
 #include <stddef.h>
 #else
 #include <gb/crash_handler.h>
-#include <gb/gb.h>
 #endif
 
 #include "obj.h"
 
-#define MAX_OBJ 10
+#define MAX_OBJ 20
 
 obj *active = NULL;
 obj *inactive = NULL;
@@ -26,7 +25,8 @@ void obj_pool_init(void) {
 obj *obj_create(
     void (*init)(void *data),
     uint8_t (*step)(void *data),
-    uint8_t (*exit)(void *data),
+    uint8_t (*destroy)(void *data),
+    void (*draw)(void *data),
     void *data
 ) {
     if (!inactive) {
@@ -38,7 +38,8 @@ obj *obj_create(
 
     new_obj->init = init;
     new_obj->step = step;
-    new_obj->exit = exit;
+    new_obj->destroy = destroy;
+    new_obj->draw = draw;
     new_obj->data = data;
     new_obj->next = NULL;
 
@@ -59,24 +60,67 @@ obj *obj_create(
     return new_obj;
 }
 
-void obj_release(obj **target) {
-    if (!target || !*target) return;
-    obj *bye = *target;
-    bye->data = NULL;
-    bye->init = NULL;
-    bye->step = NULL;
-    bye->exit = NULL;
-    bye->next = inactive;
-    inactive = bye;
-    *target = NULL;
-}
+void obj_release(obj *target) {
+    if (!active || !target) return;
 
-void obj_run_cycle(obj *start) {
-    if (start) {
-        obj *curr = start;
-        while (curr) {
-            curr->step(curr->data);
-            curr = curr->next;
+    if (active == target) {
+        active = active->next;
+    } else {
+        obj *prev = active;
+        while (prev->next && prev->next != target) {
+            prev = prev->next;
+        }
+        if (prev->next == target) {
+            prev->next = target->next;
         }
     }
+
+    target->data = NULL;
+    target->init = NULL;
+    target->step = NULL;
+    target->destroy = NULL;
+    target->draw = NULL;
+    target->next = inactive;
+    inactive = target;
+}
+
+void obj_release_all(void) {
+    obj *curr = active;
+    obj *next;
+    while (curr != NULL) {
+        next = curr->next;
+
+        curr->data  = NULL;
+        curr->init  = NULL;
+        curr->step  = NULL;
+        curr->destroy  = NULL;
+        curr->draw  = NULL;
+
+        curr->next = inactive;
+        inactive   = curr;
+
+        curr = next;
+    }
+    active = NULL;
+}
+
+void obj_render(void) {
+    obj *curr = active;
+    while (curr != NULL) {
+        if (curr->draw) {
+            curr->draw(curr->data);
+        }
+        curr = curr->next;
+    }
+}
+
+void obj_run_cycle(void) {
+    obj *curr = active;
+    while (curr) {
+        obj *next = curr->next;
+        if (curr->step)
+            curr->step(curr->data);
+        curr = next;
+    }
+    obj_render();
 }
