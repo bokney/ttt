@@ -12,9 +12,12 @@ GBDK_EXISTS = $(shell [ -d $(GBDK_DIR) ] && echo 1)
 LCC = $(GBDK_DIR)/bin/lcc
 
 C_SRC = $(shell find src -name "*.c")
+SRC_WITHOUT_MAIN = $(filter-out src/main.c, $(C_SRC))
 
-TEST_SRC = $(wildcard test/*.c) $(filter-out src/main.c, $(C_SRC))
-TEST_RUNNER = test_runner
+TEST_FILES = $(wildcard test/*.c)
+TEST_RUNNERS = $(patsubst test/%.c,test/%_runner,$(TEST_FILES))
+TEST_MOCKS = $(wildcard test/mock_gb/*.c)
+SRC_FOR_TEST = src/obj.c src/state.c
 
 BUILD_DIR = builds
 TIMESTAMP = $(shell date +"%Y-%m-%d_%H-%M-%S")
@@ -47,13 +50,21 @@ else
 	@echo "GBDK-2020 already exists!"
 endif
 
-run_tests:
-	rm -rf $(TEST_RUNNER)
-	gcc -DTEST -I$(UNITY_SRC) -I$(UNITY_FIXTURE) -I./src -I./test -o $(TEST_RUNNER) $(UNITY_SRC)/unity.c $(TEST_SRC)
-	./$(TEST_RUNNER)
+$(TEST_RUNNERS): %_runner: %.c $(UNITY_SRC)/unity.c $(SRC_FOR_TEST) $(TEST_MOCKS)
+	@echo "Building test runner for $<"
+	gcc -DTEST -I$(UNITY_SRC) -I$(UNITY_FIXTURE) -I./src -I./test -o $@ $(UNITY_SRC)/unity.c $< $(TEST_MOCKS) $(SRC_FOR_TEST)
+
+run_tests: $(TEST_RUNNERS)
+	@for runner in $(TEST_RUNNERS); do \
+		echo "-----------------------"; \
+		echo "Running $$runner..."; \
+		./$$runner || exit 1; \
+	done
 
 build: $(C_SRC)
 	$(LCC) -o $(OUTPUT) $(C_SRC)
+	@echo "Running analyse_rom.sh on $(OUTPUT)..."
+	@./dev/analyse_rom.sh $(OUTPUT)
 
 open:
 ifeq ($(SAMEBOY_EXISTS),1)
@@ -61,4 +72,4 @@ ifeq ($(SAMEBOY_EXISTS),1)
 endif
 
 clean:
-	rm -rf ./*.asm ./*.ihx ./*.lst ./*.o ./*.s2 ./*.sym $(TEST_RUNNER)
+	rm -rf ./*.asm ./*.ihx ./*.lst ./*.o ./*.s2 ./*.sym $(TEST_RUNNERS)
